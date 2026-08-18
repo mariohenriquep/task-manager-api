@@ -53,6 +53,11 @@ valid stricter variant if you want to take it further.
 
 ## Running it
 
+**One-time setup per machine:** this project pins the build to JDK 21 via Maven Toolchains, which
+needs a `~/.m2/toolchains.xml` outside the repo. Copy `docs/toolchains.sample.xml` there and point
+it at your JDK 21 install (see the comments in that file). Without it, `./mvnw` fails fast with a
+clear `Cannot find matching toolchain definitions` error rather than an obscure one.
+
 Start a local Postgres:
 
 ```bash

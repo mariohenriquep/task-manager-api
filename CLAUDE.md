@@ -4,12 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-The default `java`/`JAVA_HOME` on this machine is not 21. If `./mvnw` picks the wrong JDK, prefix
-every command below with:
-
-```bash
-JAVA_HOME=$(/usr/libexec/java_home -v 21)
-```
+The build enforces JDK 21 via Maven Toolchains (`maven-toolchains-plugin` in `pom.xml`), so it
+works regardless of the shell's default `java`/`JAVA_HOME` - **but only once `~/.m2/toolchains.xml`
+exists on this machine** (it's per-machine, not part of the repo). One-time setup: copy
+`docs/toolchains.sample.xml` to `~/.m2/toolchains.xml` and point `<jdkHome>` at a JDK 21 install
+(`/usr/libexec/java_home -v 21` on macOS finds one). Without it, every command below fails fast
+with `Cannot find matching toolchain definitions` - a clear error, not a mysterious one, but still
+worth fixing via toolchains.xml rather than routing around it with a manual `JAVA_HOME=` prefix.
 
 ```bash
 ./mvnw test                                              # full suite (unit + integration + ArchUnit)
