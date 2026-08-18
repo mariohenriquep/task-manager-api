@@ -11,6 +11,7 @@ import com.taskmanager.api.application.usecase.DeleteTaskUseCase;
 import com.taskmanager.api.application.usecase.GetTaskUseCase;
 import com.taskmanager.api.application.usecase.ListTasksUseCase;
 import com.taskmanager.api.application.usecase.UpdateTaskUseCase;
+import com.taskmanager.api.domain.exception.InvalidTaskException;
 import com.taskmanager.api.domain.exception.InvalidTaskStatusTransitionException;
 import com.taskmanager.api.domain.exception.TaskNotFoundException;
 import com.taskmanager.api.domain.model.Task;
@@ -97,6 +98,22 @@ class TaskControllerTest {
                         .content(objectMapper.writeValueAsString(new CreateTaskRequest("  ", null, null))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    void returns400WhenDomainRejectsAnInvalidTaskOutsideBeanValidation() throws Exception {
+        // A domain invariant can differ from the DTO's own @Size/@NotBlank bounds, so
+        // InvalidTaskException can reach the controller without MethodArgumentNotValidException
+        // ever being raised - this exercises that path specifically, not the @Valid one above.
+        when(createTaskUseCase.execute(any(CreateTaskCommand.class)))
+                .thenThrow(new InvalidTaskException("Task title must not be blank"));
+
+        mockMvc.perform(post("/api/tasks")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new CreateTaskRequest("Valid title", null, null))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Task title must not be blank"));
     }
 
     @Test
