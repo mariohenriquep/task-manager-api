@@ -19,7 +19,7 @@
 
     <properties>
         <java.version>21</java.version>
-        <archunit.version>1.4.2</archunit.version>
+        <archunit.version>1.5.0</archunit.version>
         <jacoco.version>0.8.15</jacoco.version>
         <!-- Line/branch coverage floor enforced by `mvn verify`. The existing TDD suite already
              exercises nearly everything; raise this as coverage on new code grows, don't lower
