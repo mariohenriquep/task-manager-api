@@ -109,6 +109,31 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
 
+            <!-- Forces every build to use a JDK 21 toolchain regardless of the shell's ambient
+                 JAVA_HOME/java, and fails fast with a clear message if none is registered -
+                 instead of silently compiling/running with the wrong JDK and failing later with
+                 a confusing bytecode-version mismatch. One-time setup per machine: see
+                 docs/toolchains.sample.xml. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-toolchains-plugin</artifactId>
+                <version>3.2.0</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>toolchain</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <toolchains>
+                        <jdk>
+                            <version>21</version>
+                        </jdk>
+                    </toolchains>
+                </configuration>
+            </plugin>
+
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
