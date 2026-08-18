@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: task-manager-api
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:task_manager}
+    username: ${DB_USER:task_manager}
+    password: ${DB_PASSWORD:task_manager}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: ${SERVER_PORT:8080}
+
+logging:
+  level:
+    com.taskmanager.api: INFO
