@@ -66,6 +66,54 @@ class TaskTest {
                     .isInstanceOf(InvalidTaskException.class)
                     .hasMessageContaining("2000");
         }
+
+        @Test
+        void systemClockOverloadStampsCurrentTime() {
+            Instant before = Instant.now();
+
+            Task task = Task.create("Title", null, null);
+
+            assertThat(task.createdAt()).isBetween(before, Instant.now());
+            assertThat(task.updatedAt()).isEqualTo(task.createdAt());
+        }
+    }
+
+    @Nested
+    class Identity {
+
+        @Test
+        void tasksWithTheSameIdAreEqualEvenIfOtherFieldsDiffer() {
+            Task original = Task.create("Title", null, null, FIXED_CLOCK);
+            Task laterVersion = original.updateDetails("Different title", "desc", null, FIXED_CLOCK);
+
+            assertThat(laterVersion).isEqualTo(original);
+            assertThat(laterVersion).hasSameHashCodeAs(original);
+        }
+
+        @Test
+        void tasksWithDifferentIdsAreNeverEqual() {
+            Task first = Task.create("Same title", null, null, FIXED_CLOCK);
+            Task second = Task.create("Same title", null, null, FIXED_CLOCK);
+
+            assertThat(first).isNotEqualTo(second);
+        }
+
+        @Test
+        void aTaskIsNotEqualToSomeOtherType() {
+            Task task = Task.create("Title", null, null, FIXED_CLOCK);
+
+            assertThat(task).isNotEqualTo("not a task");
+        }
+
+        @Test
+        void toStringIncludesIdTitleAndStatus() {
+            Task task = Task.create("Write docs", null, null, FIXED_CLOCK);
+
+            assertThat(task.toString())
+                    .contains(task.id().toString())
+                    .contains("Write docs")
+                    .contains("TODO");
+        }
     }
 
     @Nested
