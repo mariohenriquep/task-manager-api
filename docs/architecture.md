@@ -132,14 +132,34 @@ invent a new package ad hoc — flag it for discussion rather than guessing.
   Don't use AssertJ's `assertThatThrownBy` for new tests; one style per job keeps the suite
   uniform.
 
-  ```java
-  InvalidTaskException ex = assertThrows(InvalidTaskException.class,
-          () -> Task.create("   ", "desc", null, FIXED_CLOCK));
-  assertThat(ex.getMessage()).contains("title");
-  ```
-
   Also assert what must *not* have happened: when a use case throws, verify the repository was
   never written to (`verify(taskRepository, never()).save(any())`).
+- **Arrange-Act-Assert (AAA)** — every test method has three blocks, marked with the comments
+  `// Arrange`, `// Act` and `// Assert`, in that order and separated by blank lines:
+  - **Arrange** — inputs, fixtures and mock stubbing. For a test that expects an exception, also
+    declare the action as `Executable act = () -> ...`; declaring it runs nothing.
+  - **Act** — the single action under test. For code that must throw, that is
+    `assertThrows(Type.class, act)`: it runs the action and captures the exception.
+  - **Assert** — AssertJ checks on the result or on the captured exception (message, fields),
+    plus Mockito `verify` calls.
+
+  ```java
+  @Test
+  void rejectsBlankTitle() {
+      // Arrange
+      Executable act = () -> Task.create("   ", "desc", null, FIXED_CLOCK);
+
+      // Act
+      InvalidTaskException ex = assertThrows(InvalidTaskException.class, act);
+
+      // Assert
+      assertThat(ex.getMessage()).contains("title");
+  }
+  ```
+
+  For MockMvc tests, Act is `ResultActions result = mockMvc.perform(...)` and Assert is the
+  `result.andExpect(...)` chain. Exempt: the ArchUnit rule classes (declarative rules, nothing
+  to arrange or act on) and the empty `contextLoads` smoke test.
 - **Coverage** — enforced via JaCoCo (`pom.xml`); see the badge/threshold configured there for
   the current target. Coverage is a means, not the goal: a test that executes a line without
   asserting real behavior doesn't count, regardless of what the percentage says.
