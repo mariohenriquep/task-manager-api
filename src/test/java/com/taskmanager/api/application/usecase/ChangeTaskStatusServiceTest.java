@@ -10,6 +10,9 @@ import com.taskmanager.api.domain.repository.TaskRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -18,10 +21,13 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -78,8 +84,42 @@ class ChangeTaskStatusServiceTest {
         Task task = Task.create("Task", null, null, FIXED_CLOCK).complete(FIXED_CLOCK);
         when(taskRepository.findById(task.id())).thenReturn(Optional.of(task));
 
-        assertThatThrownBy(() -> useCase.execute(new ChangeTaskStatusCommand(task.id(), TaskStatusAction.START)))
-                .isInstanceOf(InvalidTaskStatusTransitionException.class);
+        InvalidTaskStatusTransitionException ex = assertThrows(InvalidTaskStatusTransitionException.class,
+                () -> useCase.execute(new ChangeTaskStatusCommand(task.id(), TaskStatusAction.START)));
+
+        assertThat(ex.getMessage()).isEqualTo("Cannot move task from status DONE to IN_PROGRESS");
+        verify(taskRepository, never()).save(any(Task.class));
+    }
+
+    static Stream<Arguments> illegalTransitions() {
+        return Stream.of(
+                Arguments.of(TaskStatus.IN_PROGRESS, TaskStatusAction.START, TaskStatus.IN_PROGRESS),
+                Arguments.of(TaskStatus.DONE, TaskStatusAction.START, TaskStatus.IN_PROGRESS),
+                Arguments.of(TaskStatus.DONE, TaskStatusAction.COMPLETE, TaskStatus.DONE),
+                Arguments.of(TaskStatus.TODO, TaskStatusAction.REOPEN, TaskStatus.TODO),
+                Arguments.of(TaskStatus.IN_PROGRESS, TaskStatusAction.REOPEN, TaskStatus.TODO));
+    }
+
+    @ParameterizedTest(name = "{1} from {0} is rejected")
+    @MethodSource("illegalTransitions")
+    void propagatesInvalidTransitionAndDoesNotSave(TaskStatus current, TaskStatusAction action, TaskStatus target) {
+        Task task = taskInStatus(current);
+        when(taskRepository.findById(task.id())).thenReturn(Optional.of(task));
+
+        InvalidTaskStatusTransitionException ex = assertThrows(InvalidTaskStatusTransitionException.class,
+                () -> useCase.execute(new ChangeTaskStatusCommand(task.id(), action)));
+
+        assertThat(ex.getMessage()).isEqualTo("Cannot move task from status " + current + " to " + target);
+        verify(taskRepository, never()).save(any(Task.class));
+    }
+
+    private static Task taskInStatus(TaskStatus status) {
+        Task task = Task.create("Task", null, null, FIXED_CLOCK);
+        return switch (status) {
+            case TODO -> task;
+            case IN_PROGRESS -> task.start(FIXED_CLOCK);
+            case DONE -> task.complete(FIXED_CLOCK);
+        };
     }
 
     @Test
@@ -87,7 +127,10 @@ class ChangeTaskStatusServiceTest {
         UUID id = UUID.randomUUID();
         when(taskRepository.findById(id)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> useCase.execute(new ChangeTaskStatusCommand(id, TaskStatusAction.START)))
-                .isInstanceOf(TaskNotFoundException.class);
+        TaskNotFoundException ex = assertThrows(TaskNotFoundException.class,
+                () -> useCase.execute(new ChangeTaskStatusCommand(id, TaskStatusAction.START)));
+
+        assertThat(ex.getMessage()).isEqualTo("Task not found: " + id);
+        verify(taskRepository, never()).save(any(Task.class));
     }
 }

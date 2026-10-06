@@ -1,6 +1,7 @@
 package com.taskmanager.api.application.usecase;
 
 import com.taskmanager.api.application.command.UpdateTaskCommand;
+import com.taskmanager.api.domain.exception.InvalidTaskException;
 import com.taskmanager.api.domain.exception.TaskNotFoundException;
 import com.taskmanager.api.domain.model.Task;
 import com.taskmanager.api.domain.repository.TaskRepository;
@@ -18,8 +19,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,7 +59,22 @@ class UpdateTaskServiceTest {
         UUID id = UUID.randomUUID();
         when(taskRepository.findById(id)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> useCase.execute(new UpdateTaskCommand(id, "Title", null, null)))
-                .isInstanceOf(TaskNotFoundException.class);
+        TaskNotFoundException ex = assertThrows(TaskNotFoundException.class,
+                () -> useCase.execute(new UpdateTaskCommand(id, "Title", null, null)));
+
+        assertThat(ex.getMessage()).isEqualTo("Task not found: " + id);
+        verify(taskRepository, never()).save(any(Task.class));
+    }
+
+    @Test
+    void propagatesDomainValidationFailureForBlankTitle() {
+        Task existing = Task.create("Original", "Original desc", null, FIXED_CLOCK);
+        when(taskRepository.findById(existing.id())).thenReturn(Optional.of(existing));
+
+        InvalidTaskException ex = assertThrows(InvalidTaskException.class,
+                () -> useCase.execute(new UpdateTaskCommand(existing.id(), "   ", "New desc", null)));
+
+        assertThat(ex.getMessage()).isEqualTo("Task title must not be blank");
+        verify(taskRepository, never()).save(any(Task.class));
     }
 }
