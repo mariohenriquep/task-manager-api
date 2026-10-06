@@ -122,6 +122,24 @@ invent a new package ad hoc — flag it for discussion rather than guessing.
 - **Web** — `@WebMvcTest` + MockMvc, use cases mocked (`TaskControllerTest`).
 - **Architecture** — ArchUnit (`OnionArchitectureTest`), enforcing everything in §1–§2
   mechanically rather than relying on review alone to catch a layering violation.
+- **Assertions** — two tools, each for one job:
+  - **JUnit 5 `assertThrows`** for code that must throw. It takes the expected exception type and
+    a lambda, fails unless that lambda throws, and returns the exception so its message can be
+    checked. `assertDoesNotThrow` is its counterpart for boundary values that must be accepted.
+  - **AssertJ `assertThat`** for every value assertion, including the message of an exception
+    returned by `assertThrows`.
+
+  Don't use AssertJ's `assertThatThrownBy` for new tests; one style per job keeps the suite
+  uniform.
+
+  ```java
+  InvalidTaskException ex = assertThrows(InvalidTaskException.class,
+          () -> Task.create("   ", "desc", null, FIXED_CLOCK));
+  assertThat(ex.getMessage()).contains("title");
+  ```
+
+  Also assert what must *not* have happened: when a use case throws, verify the repository was
+  never written to (`verify(taskRepository, never()).save(any())`).
 - **Coverage** — enforced via JaCoCo (`pom.xml`); see the badge/threshold configured there for
   the current target. Coverage is a means, not the goal: a test that executes a line without
   asserting real behavior doesn't count, regardless of what the percentage says.
