@@ -41,6 +41,12 @@ pure-Java domain test hides the class's real dependencies and slows the suite fo
   `@Nested` classes to group by scenario the way `TaskTest` already does
   (`Creation`/`StatusTransitions`/`Identity`). Prefer `@ParameterizedTest` for tables of inputs
   over copy-pasted near-identical cases.
+- **Assert exceptions with JUnit 5, values with AssertJ** (`docs/architecture.md` §7). Code that
+  must throw goes through `assertThrows(Expected.class, () -> ...)`; capture the returned
+  exception and check its message with `assertThat(ex.getMessage())`. Boundary values that must
+  be accepted use `assertDoesNotThrow`. Don't write new `assertThatThrownBy` calls. When a use
+  case throws, also `verify(repository, never()).save(...)` so the test proves nothing was
+  written.
 - **Don't spend effort on trivial accessors or framework glue** — a record's generated
   accessor or a one-line delegating method isn't where regressions hide. If a class is
   surprisingly hard to reach the coverage floor on, that's usually a design smell (too many
