@@ -14,7 +14,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,7 +46,9 @@ class GetTaskServiceTest {
         UUID id = UUID.randomUUID();
         when(taskRepository.findById(id)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> useCase.execute(id))
-                .isInstanceOf(TaskNotFoundException.class);
+        TaskNotFoundException ex = assertThrows(TaskNotFoundException.class, () -> useCase.execute(id));
+
+        assertThat(ex.getMessage()).isEqualTo("Task not found: " + id);
+        verifyNoMoreInteractions(taskRepository);
     }
 }

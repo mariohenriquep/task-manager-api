@@ -10,7 +10,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -42,7 +44,9 @@ class DeleteTaskServiceTest {
         UUID id = UUID.randomUUID();
         when(taskRepository.existsById(id)).thenReturn(false);
 
-        assertThatThrownBy(() -> useCase.execute(id))
-                .isInstanceOf(TaskNotFoundException.class);
+        TaskNotFoundException ex = assertThrows(TaskNotFoundException.class, () -> useCase.execute(id));
+
+        assertThat(ex.getMessage()).isEqualTo("Task not found: " + id);
+        verify(taskRepository, never()).deleteById(id);
     }
 }

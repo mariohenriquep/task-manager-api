@@ -17,8 +17,9 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,7 +56,10 @@ class CreateTaskServiceTest {
 
     @Test
     void propagatesDomainValidationFailure() {
-        assertThatThrownBy(() -> useCase.execute(new CreateTaskCommand("", "desc", null)))
-                .isInstanceOf(InvalidTaskException.class);
+        InvalidTaskException ex = assertThrows(InvalidTaskException.class,
+                () -> useCase.execute(new CreateTaskCommand("", "desc", null)));
+
+        assertThat(ex.getMessage()).isEqualTo("Task title must not be blank");
+        verify(taskRepository, never()).save(any(Task.class));
     }
 }
