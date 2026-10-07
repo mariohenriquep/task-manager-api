@@ -64,6 +64,7 @@ JPA entity must never appear in `domain/` or be serialized directly.
 |---|---|
 | Aggregate, value objects, domain exceptions | `domain.model`, `domain.exception` |
 | Repository port (interface only) | `domain.repository` |
+| Query model for listing: filters, sort, page request, `Page<T>` result | `domain.query` |
 | Use case interface + implementation | `application.usecase` |
 | Use case input records | `application.command` |
 | REST controller | `infrastructure.web.controller` |
@@ -93,6 +94,11 @@ invent a new package ad hoc — flag it for discussion rather than guessing.
   `reopen()`/`updateDetails()` each return a *new* `Task` after checking the move is legal,
   rather than mutating shared state or letting a service class decide what transitions are
   valid. The state machine lives in the aggregate itself (Information Expert, from GRASP).
+- **Own query model, no Spring Data in the core** — listing is expressed with `domain.query`
+  (`TaskQuery`, `PageRequest`, `TaskSort`, `Page<T>`), which validate themselves. Spring Data's
+  `Pageable`/`Page`/`Sort` must never appear in `domain` or `application`; only
+  `infrastructure.persistence` translates the domain query into them (and maps the domain sort
+  fields to entity attributes), and `infrastructure.web` parses request parameters into it.
 - **Explicit mapper, not a mapping library** — `TaskPersistenceMapper` and `TaskWebMapper` are
   plain static methods, not MapStruct/ModelMapper. For three fields' worth of aggregates this
   is more debuggable than it is boilerplate; revisit if the domain grows enough that manual
