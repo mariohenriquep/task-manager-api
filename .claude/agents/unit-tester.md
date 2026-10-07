@@ -41,6 +41,18 @@ pure-Java domain test hides the class's real dependencies and slows the suite fo
   `@Nested` classes to group by scenario the way `TaskTest` already does
   (`Creation`/`StatusTransitions`/`Identity`). Prefer `@ParameterizedTest` for tables of inputs
   over copy-pasted near-identical cases.
+- **Every test is Arrange-Act-Assert, marked with comments** (`docs/architecture.md` §7): a
+  `// Arrange`, a `// Act` and a `// Assert` block, in that order, separated by blank lines.
+  Exception tests declare `Executable act = () -> ...` in Arrange, capture the exception in Act
+  with `assertThrows(Expected.class, act)`, and check it in Assert with
+  `assertThat(ex.getMessage())`. For MockMvc, Act is `ResultActions result = mockMvc.perform(...)`
+  and Assert is `result.andExpect(...)`. Exempt: ArchUnit rule classes and the empty
+  `contextLoads` smoke test.
+- **Assert exceptions with JUnit 5, values with AssertJ.** Code that must throw goes through
+  `assertThrows`; boundary values that must be accepted use `assertDoesNotThrow`. Don't write new
+  `assertThatThrownBy` calls. When a use case throws, also `verify(repository, never()).save(...)`
+  in Assert so the test proves nothing was written. Add the missing exception test whenever you
+  find a throw site that has none.
 - **Don't spend effort on trivial accessors or framework glue** — a record's generated
   accessor or a one-line delegating method isn't where regressions hide. If a class is
   surprisingly hard to reach the coverage floor on, that's usually a design smell (too many
