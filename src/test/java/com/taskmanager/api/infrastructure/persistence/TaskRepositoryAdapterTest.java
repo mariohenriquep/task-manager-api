@@ -2,6 +2,8 @@ package com.taskmanager.api.infrastructure.persistence;
 
 import com.taskmanager.api.domain.model.Task;
 import com.taskmanager.api.domain.model.TaskStatus;
+import com.taskmanager.api.domain.query.Page;
+import com.taskmanager.api.domain.query.TaskQuery;
 import com.taskmanager.api.infrastructure.AbstractPostgresIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,7 +14,6 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -59,7 +60,7 @@ class TaskRepositoryAdapterTest extends AbstractPostgresIntegrationTest {
     }
 
     @Test
-    void findsAllPersistedTasks() {
+    void searchFindsEveryPersistedTask() {
         // Arrange
         Task first = Task.create("First", null, null, Clock.systemUTC());
         Task second = Task.create("Second", null, null, Clock.systemUTC());
@@ -67,10 +68,11 @@ class TaskRepositoryAdapterTest extends AbstractPostgresIntegrationTest {
         adapter.save(second);
 
         // Act
-        List<Task> all = adapter.findAll();
+        Page<Task> all = adapter.search(TaskQuery.all());
 
         // Assert
-        assertThat(all).extracting(Task::id).containsExactlyInAnyOrder(first.id(), second.id());
+        assertThat(all.content()).extracting(Task::id).containsExactlyInAnyOrder(first.id(), second.id());
+        assertThat(all.totalElements()).isEqualTo(2);
     }
 
     @Test
@@ -83,12 +85,12 @@ class TaskRepositoryAdapterTest extends AbstractPostgresIntegrationTest {
         // Act
         adapter.save(started);
         Optional<Task> found = adapter.findById(task.id());
-        List<Task> all = adapter.findAll();
+        Page<Task> all = adapter.search(TaskQuery.all());
 
         // Assert
         assertThat(found).isPresent();
         assertThat(found.get().status()).isEqualTo(TaskStatus.IN_PROGRESS);
-        assertThat(all).hasSize(1);
+        assertThat(all.totalElements()).isEqualTo(1);
     }
 
     @Test

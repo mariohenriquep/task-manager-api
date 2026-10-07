@@ -102,3 +102,12 @@ Delegatable agents (`.claude/agents/`): `task-developer` (implements features),
 `{"action": "START"|"COMPLETE"|"REOPEN"}`. Status lifecycle: `TODO → IN_PROGRESS → DONE`, plus
 `TODO → DONE` (complete directly) and `DONE → TODO` (reopen); any other transition is
 `409 Conflict`, a missing task is `404`, a domain/validation failure is `400`.
+
+`GET /api/tasks` is a search, not a bare list. Optional params: `status` (TODO/IN_PROGRESS/DONE),
+`dueAfter`/`dueBefore` (ISO dates, both bounds exclusive, undated tasks never match; `dueAfter`
+must be before `dueBefore`), `sort` as `field[,direction]` (field in createdAt/dueDate/title/status,
+direction asc|desc case-insensitive, default `createdAt,desc`; `status` sorts alphabetically by
+name, null due dates last, id is the final tie-breaker), `page` (default 0, >= 0) and `size`
+(default 20, 1-100). It returns the envelope
+`{content, page, size, totalElements, totalPages}`; any invalid value is a `400` `ErrorResponse`.
+The wire syntax is parsed by `TaskQueryWebMapper`; page/size/date-window rules live in `domain.query`.

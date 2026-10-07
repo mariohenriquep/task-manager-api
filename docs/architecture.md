@@ -70,7 +70,7 @@ JPA entity must never appear in `domain/` or be serialized directly.
 | REST controller | `infrastructure.web.controller` |
 | Request/response DTOs, error shape | `infrastructure.web.dto` |
 | `@RestControllerAdvice` exception mapping | `infrastructure.web.exception` |
-| Domain ↔ DTO translation | `infrastructure.web.mapper` |
+| Domain ↔ DTO translation, request parameters → `TaskQuery` | `infrastructure.web.mapper` |
 | JPA entity | `infrastructure.persistence.entity` |
 | Spring Data repository interface | `infrastructure.persistence` (package-private) |
 | Repository port implementation (adapter) | `infrastructure.persistence` |
@@ -98,7 +98,9 @@ invent a new package ad hoc — flag it for discussion rather than guessing.
   (`TaskQuery`, `PageRequest`, `TaskSort`, `Page<T>`), which validate themselves. Spring Data's
   `Pageable`/`Page`/`Sort` must never appear in `domain` or `application`; only
   `infrastructure.persistence` translates the domain query into them (and maps the domain sort
-  fields to entity attributes), and `infrastructure.web` parses request parameters into it.
+  fields to entity attributes), and `infrastructure.web` parses request parameters into it
+  (`TaskQueryWebMapper` owns the `sort=field,direction` syntax; page/size/date-window validation
+  stays in the domain types and reaches the client as a 400 via `GlobalExceptionHandler`).
 - **Explicit mapper, not a mapping library** — `TaskPersistenceMapper` and `TaskWebMapper` are
   plain static methods, not MapStruct/ModelMapper. For three fields' worth of aggregates this
   is more debuggable than it is boilerplate; revisit if the domain grows enough that manual

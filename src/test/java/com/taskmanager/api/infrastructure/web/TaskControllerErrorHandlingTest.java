@@ -5,7 +5,7 @@ import com.taskmanager.api.application.usecase.ChangeTaskStatusUseCase;
 import com.taskmanager.api.application.usecase.CreateTaskUseCase;
 import com.taskmanager.api.application.usecase.DeleteTaskUseCase;
 import com.taskmanager.api.application.usecase.GetTaskUseCase;
-import com.taskmanager.api.application.usecase.ListTasksUseCase;
+import com.taskmanager.api.application.usecase.SearchTasksUseCase;
 import com.taskmanager.api.application.usecase.UpdateTaskUseCase;
 import com.taskmanager.api.infrastructure.web.controller.TaskController;
 import org.junit.jupiter.api.Nested;
@@ -53,7 +53,7 @@ class TaskControllerErrorHandlingTest {
     private GetTaskUseCase getTaskUseCase;
 
     @MockitoBean
-    private ListTasksUseCase listTasksUseCase;
+    private SearchTasksUseCase searchTasksUseCase;
 
     @MockitoBean
     private UpdateTaskUseCase updateTaskUseCase;

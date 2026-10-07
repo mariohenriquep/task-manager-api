@@ -1,6 +1,7 @@
 package com.taskmanager.api.infrastructure.web.exception;
 
 import com.taskmanager.api.domain.exception.InvalidTaskException;
+import com.taskmanager.api.domain.exception.InvalidTaskQueryException;
 import com.taskmanager.api.domain.exception.InvalidTaskStatusTransitionException;
 import com.taskmanager.api.domain.exception.TaskNotFoundException;
 import com.taskmanager.api.infrastructure.web.dto.ErrorResponse;
@@ -37,6 +38,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(InvalidTaskException.class)
     public ResponseEntity<ErrorResponse> handleInvalidTask(InvalidTaskException ex, WebRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(InvalidTaskQueryException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidQuery(InvalidTaskQueryException ex, WebRequest request) {
         return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
     }
 

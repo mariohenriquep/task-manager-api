@@ -97,11 +97,45 @@ Persistence and full-context tests need Docker running (Testcontainers spins up
 | Method | Path                    | Description                          |
 |--------|-------------------------|---------------------------------------|
 | POST   | `/api/tasks`             | Create a task                        |
-| GET    | `/api/tasks`             | List all tasks                       |
+| GET    | `/api/tasks`             | Search tasks: filter, sort, paginate (see below) |
 | GET    | `/api/tasks/{id}`        | Get a task by id                     |
 | PUT    | `/api/tasks/{id}`        | Update title/description/due date    |
 | PATCH  | `/api/tasks/{id}/status` | Transition status (`START`/`COMPLETE`/`REOPEN`) |
 | DELETE | `/api/tasks/{id}`        | Delete a task                        |
+
+### Listing and searching: `GET /api/tasks`
+
+All parameters are optional and combine freely, e.g.
+`GET /api/tasks?status=TODO&dueAfter=2026-10-01&dueBefore=2026-11-01&sort=dueDate,asc&page=0&size=20`.
+
+| Parameter   | Default        | Description |
+|-------------|----------------|-------------|
+| `status`    | any            | `TODO`, `IN_PROGRESS` or `DONE` |
+| `dueAfter`  | no lower bound | ISO date (`2026-10-01`); only tasks due strictly after it |
+| `dueBefore` | no upper bound | ISO date; only tasks due strictly before it. Must be after `dueAfter` when both are given |
+| `sort`      | `createdAt,desc` | `field[,direction]`: field is `createdAt`, `dueDate`, `title` or `status` (exact camelCase), direction is `asc` (default) or `desc`, case-insensitive |
+| `page`      | `0`            | Zero-based page index, at least 0 |
+| `size`      | `20`           | Page size, between 1 and 100 |
+
+Both date bounds are exclusive, and a task without a due date never matches a date filter. Tasks
+without a due date sort last when ordering by `dueDate`, in either direction. `status` sorts
+alphabetically by name (`DONE`, `IN_PROGRESS`, `TODO`), not by lifecycle order. The task id is
+always the final tie-breaker, so paging is stable. An invalid value (unknown sort field or
+direction, bad status or date, negative `page`, `size` outside 1-100, `dueAfter` not before
+`dueBefore`) returns `400` with the standard error body.
+
+The response is a paged envelope rather than a bare array; a page past the end returns an empty
+`content`:
+
+```json
+{
+  "content": [ { "id": "...", "title": "...", "status": "TODO", "dueDate": "2026-10-15", "...": "..." } ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1
+}
+```
 
 Task status lifecycle: `TODO → IN_PROGRESS → DONE`, with `DONE → TODO` (reopen) allowed;
 `TODO → DONE` (complete directly) is also allowed. Any other transition returns `409 Conflict`.

@@ -15,7 +15,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -42,13 +41,6 @@ public class TaskRepositoryAdapter implements TaskRepository {
     @Override
     public Optional<Task> findById(UUID id) {
         return taskJpaRepository.findById(id).map(TaskPersistenceMapper::toDomain);
-    }
-
-    @Override
-    public List<Task> findAll() {
-        return taskJpaRepository.findAll().stream()
-                .map(TaskPersistenceMapper::toDomain)
-                .toList();
     }
 
     /**
