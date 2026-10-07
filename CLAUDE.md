@@ -59,8 +59,11 @@ service deciding from outside it. Three distinct types exist for "a task"
 Test pyramid, one style per layer (mirrored by the `unit-tester` agent):
 domain/application tests use plain JUnit 5 + Mockito with **no Spring context**; persistence
 tests use `@DataJpaTest` + Testcontainers against real PostgreSQL (`AbstractPostgresIntegrationTest`
-is the shared container base class - it's a static field, so the container is reused across every
-subclass in the same JVM); web tests use `@WebMvcTest` + MockMvc with use cases mocked.
+is the shared container base class; its static `@Container` field is started and stopped once
+**per test class**, so every class gets its own fresh, empty database - CI shows one container per
+class. Don't assume rows from another class exist, and don't turn it into a JVM-wide singleton
+without first making `TaskRepositoryAdapterTest`, which asserts on exact table contents, independent
+of leftover rows); web tests use `@WebMvcTest` + MockMvc with use cases mocked.
 
 ### Spring Boot 4 gotchas
 
