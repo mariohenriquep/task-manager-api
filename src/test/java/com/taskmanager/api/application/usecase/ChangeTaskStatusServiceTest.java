@@ -10,6 +10,7 @@ import com.taskmanager.api.domain.repository.TaskRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -48,45 +49,60 @@ class ChangeTaskStatusServiceTest {
 
     @Test
     void startsATodoTask() {
+        // Arrange
         Task task = Task.create("Task", null, null, FIXED_CLOCK);
         when(taskRepository.findById(task.id())).thenReturn(Optional.of(task));
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        ChangeTaskStatusCommand command = new ChangeTaskStatusCommand(task.id(), TaskStatusAction.START);
 
-        Task result = useCase.execute(new ChangeTaskStatusCommand(task.id(), TaskStatusAction.START));
+        // Act
+        Task result = useCase.execute(command);
 
+        // Assert
         assertThat(result.status()).isEqualTo(TaskStatus.IN_PROGRESS);
     }
 
     @Test
     void completesATask() {
+        // Arrange
         Task task = Task.create("Task", null, null, FIXED_CLOCK);
         when(taskRepository.findById(task.id())).thenReturn(Optional.of(task));
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        ChangeTaskStatusCommand command = new ChangeTaskStatusCommand(task.id(), TaskStatusAction.COMPLETE);
 
-        Task result = useCase.execute(new ChangeTaskStatusCommand(task.id(), TaskStatusAction.COMPLETE));
+        // Act
+        Task result = useCase.execute(command);
 
+        // Assert
         assertThat(result.status()).isEqualTo(TaskStatus.DONE);
     }
 
     @Test
     void reopensADoneTask() {
+        // Arrange
         Task task = Task.create("Task", null, null, FIXED_CLOCK).complete(FIXED_CLOCK);
         when(taskRepository.findById(task.id())).thenReturn(Optional.of(task));
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        ChangeTaskStatusCommand command = new ChangeTaskStatusCommand(task.id(), TaskStatusAction.REOPEN);
 
-        Task result = useCase.execute(new ChangeTaskStatusCommand(task.id(), TaskStatusAction.REOPEN));
+        // Act
+        Task result = useCase.execute(command);
 
+        // Assert
         assertThat(result.status()).isEqualTo(TaskStatus.TODO);
     }
 
     @Test
     void propagatesInvalidTransition() {
+        // Arrange
         Task task = Task.create("Task", null, null, FIXED_CLOCK).complete(FIXED_CLOCK);
         when(taskRepository.findById(task.id())).thenReturn(Optional.of(task));
+        Executable act = () -> useCase.execute(new ChangeTaskStatusCommand(task.id(), TaskStatusAction.START));
 
-        InvalidTaskStatusTransitionException ex = assertThrows(InvalidTaskStatusTransitionException.class,
-                () -> useCase.execute(new ChangeTaskStatusCommand(task.id(), TaskStatusAction.START)));
+        // Act
+        InvalidTaskStatusTransitionException ex = assertThrows(InvalidTaskStatusTransitionException.class, act);
 
+        // Assert
         assertThat(ex.getMessage()).isEqualTo("Cannot move task from status DONE to IN_PROGRESS");
         verify(taskRepository, never()).save(any(Task.class));
     }
@@ -103,12 +119,15 @@ class ChangeTaskStatusServiceTest {
     @ParameterizedTest(name = "{1} from {0} is rejected")
     @MethodSource("illegalTransitions")
     void propagatesInvalidTransitionAndDoesNotSave(TaskStatus current, TaskStatusAction action, TaskStatus target) {
+        // Arrange
         Task task = taskInStatus(current);
         when(taskRepository.findById(task.id())).thenReturn(Optional.of(task));
+        Executable act = () -> useCase.execute(new ChangeTaskStatusCommand(task.id(), action));
 
-        InvalidTaskStatusTransitionException ex = assertThrows(InvalidTaskStatusTransitionException.class,
-                () -> useCase.execute(new ChangeTaskStatusCommand(task.id(), action)));
+        // Act
+        InvalidTaskStatusTransitionException ex = assertThrows(InvalidTaskStatusTransitionException.class, act);
 
+        // Assert
         assertThat(ex.getMessage()).isEqualTo("Cannot move task from status " + current + " to " + target);
         verify(taskRepository, never()).save(any(Task.class));
     }
@@ -124,12 +143,15 @@ class ChangeTaskStatusServiceTest {
 
     @Test
     void throwsWhenTaskDoesNotExist() {
+        // Arrange
         UUID id = UUID.randomUUID();
         when(taskRepository.findById(id)).thenReturn(Optional.empty());
+        Executable act = () -> useCase.execute(new ChangeTaskStatusCommand(id, TaskStatusAction.START));
 
-        TaskNotFoundException ex = assertThrows(TaskNotFoundException.class,
-                () -> useCase.execute(new ChangeTaskStatusCommand(id, TaskStatusAction.START)));
+        // Act
+        TaskNotFoundException ex = assertThrows(TaskNotFoundException.class, act);
 
+        // Assert
         assertThat(ex.getMessage()).isEqualTo("Task not found: " + id);
         verify(taskRepository, never()).save(any(Task.class));
     }
