@@ -34,9 +34,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * End-to-end test: boots the whole application (real Flyway schema, real JPA adapter, real
  * PostgreSQL from Testcontainers) and drives it through the HTTP API with MockMvc. No mocks.
  *
- * <p>The Postgres container is shared by every test class in the JVM and its rows persist, so
- * each test creates its own task through the API and only ever asserts on that task's id -
- * never on the table being empty or on exact list sizes.
+ * <p>This class gets its own fresh PostgreSQL container (one per test class), but within it
+ * every request commits for real and the rows persist from one test to the next. So each test
+ * creates its own task through the API and only ever asserts on that task's id - never on the
+ * table being empty or on exact list sizes - which keeps the tests independent of their order.
  */
 @SpringBootTest
 @AutoConfigureMockMvc

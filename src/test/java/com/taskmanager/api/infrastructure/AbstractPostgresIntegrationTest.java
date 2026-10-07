@@ -9,9 +9,13 @@ import org.testcontainers.utility.DockerImageName;
 /**
  * Base class for integration tests that need a real PostgreSQL instance.
  *
- * <p>The container is started once per JVM and shared across every subclass, since the
- * static field is inherited rather than redeclared - this keeps the test suite fast even
- * as more integration tests are added.
+ * <p>The static {@code @Container} field is started before the first test of each subclass and
+ * stopped after its last one, so <b>every test class gets its own fresh, empty database</b> (a
+ * new container, on a new port, per class). That isolation is what lets
+ * {@code TaskRepositoryAdapterTest} assert on exact table contents. The price is one container
+ * start (about a second) per class; a JVM-wide singleton would be faster but would let rows leak
+ * between classes, so don't switch to one without making those assertions independent of
+ * leftover rows.
  */
 @Testcontainers
 public abstract class AbstractPostgresIntegrationTest {
