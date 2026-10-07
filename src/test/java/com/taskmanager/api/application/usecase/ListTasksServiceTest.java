@@ -29,19 +29,27 @@ class ListTasksServiceTest {
 
     @Test
     void returnsAllTasksFromRepository() {
+        // Arrange
         Task first = Task.create("First", null, null, Clock.systemUTC());
         Task second = Task.create("Second", null, null, Clock.systemUTC());
         when(taskRepository.findAll()).thenReturn(List.of(first, second));
 
+        // Act
         List<Task> result = useCase.execute();
 
+        // Assert
         assertThat(result).containsExactly(first, second);
     }
 
     @Test
     void returnsEmptyListWhenNoTasksExist() {
+        // Arrange
         when(taskRepository.findAll()).thenReturn(List.of());
 
-        assertThat(useCase.execute()).isEmpty();
+        // Act
+        List<Task> result = useCase.execute();
+
+        // Assert
+        assertThat(result).isEmpty();
     }
 }
