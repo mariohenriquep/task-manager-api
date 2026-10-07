@@ -8,19 +8,27 @@ import com.taskmanager.api.infrastructure.web.dto.CreateTaskRequest;
 import com.taskmanager.api.infrastructure.web.dto.UpdateTaskRequest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -108,8 +116,8 @@ class TaskApiIntegrationTest extends AbstractPostgresIntegrationTest {
 
             // Assert
             result.andExpect(status().isOk())
-                    .andExpect(jsonPath("$[?(@.id == '" + id + "')]").isNotEmpty())
-                    .andExpect(jsonPath("$[?(@.id == '" + id + "')].title").value(TITLE));
+                    .andExpect(jsonPath("$.content[?(@.id == '" + id + "')]").isNotEmpty())
+                    .andExpect(jsonPath("$.content[?(@.id == '" + id + "')].title").value(TITLE));
         }
 
         @Test
@@ -319,9 +327,289 @@ class TaskApiIntegrationTest extends AbstractPostgresIntegrationTest {
         }
     }
 
+    /**
+     * Search through the real stack. Rows persist across tests in this class, so every test builds
+     * its own tasks inside a due-date window nobody else uses (a distinct far-future year and
+     * month per test) and scopes its query to that window, so it only ever sees its own tasks.
+     * Only {@link #undatedTasksSortLastInBothDirections()} creates a task without a due date, and
+     * it is the only test that may: undated tasks cannot be scoped by a date window.
+     */
+    @Nested
+    class Search {
+
+        @Test
+        void withNoParametersReturnsTheEnvelopeWithDefaults() throws Exception {
+            // Arrange
+            String older = createTask("Older", LocalDate.of(2040, 1, 1));
+            String newer = createTask("Newer", LocalDate.of(2040, 1, 1));
+
+            // Act
+            ResultActions result = mockMvc.perform(get(BASE_URL));
+
+            // Assert
+            result.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.page").value(0))
+                    .andExpect(jsonPath("$.size").value(20))
+                    .andExpect(jsonPath("$.content.length()").value(lessThanOrEqualTo(20)))
+                    .andExpect(jsonPath("$.totalElements").value(greaterThanOrEqualTo(2)))
+                    .andExpect(jsonPath("$.totalPages").value(greaterThanOrEqualTo(1)))
+                    .andExpect(jsonPath("$.content[0].id").value(newer))
+                    .andExpect(jsonPath("$.content[1].id").value(older));
+        }
+
+        @Test
+        void filtersByStatus() throws Exception {
+            // Arrange
+            LocalDate due = LocalDate.of(2041, 1, 10);
+            createTask("Todo", due);
+            String inProgress = createTask("In progress", due);
+            changeStatus(inProgress, TaskStatusAction.START).andExpect(status().isOk());
+            String done = createTask("Done", due);
+            changeStatus(done, TaskStatusAction.COMPLETE).andExpect(status().isOk());
+
+            // Act
+            ResultActions result = mockMvc.perform(get(BASE_URL)
+                    .param("status", "IN_PROGRESS")
+                    .param("dueAfter", "2041-01-01")
+                    .param("dueBefore", "2041-02-01"));
+
+            // Assert
+            result.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[*].id").value(contains(inProgress)))
+                    .andExpect(jsonPath("$.content[0].status").value("IN_PROGRESS"))
+                    .andExpect(jsonPath("$.totalElements").value(1));
+        }
+
+        @Test
+        void filtersByDueDateWindowWithExclusiveBounds() throws Exception {
+            // Arrange
+            createTask("On the lower bound", LocalDate.of(2042, 2, 1));
+            String inside1 = createTask("Inside 1", LocalDate.of(2042, 2, 10));
+            String inside2 = createTask("Inside 2", LocalDate.of(2042, 2, 28));
+            createTask("On the upper bound", LocalDate.of(2042, 3, 1));
+
+            // Act
+            ResultActions result = mockMvc.perform(get(BASE_URL)
+                    .param("dueAfter", "2042-02-01")
+                    .param("dueBefore", "2042-03-01")
+                    .param("sort", "dueDate,asc"));
+
+            // Assert
+            result.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[*].id").value(contains(inside1, inside2)))
+                    .andExpect(jsonPath("$.totalElements").value(2));
+        }
+
+        @Test
+        void aSingleBoundFiltersOnThatSideOnly() throws Exception {
+            // Arrange
+            String early = createTask("Early", LocalDate.of(2046, 6, 5));
+            String late = createTask("Late", LocalDate.of(2046, 6, 25));
+
+            // Act
+            ResultActions after = mockMvc.perform(get(BASE_URL)
+                    .param("dueAfter", "2046-06-10").param("dueBefore", "2046-07-01"));
+            ResultActions before = mockMvc.perform(get(BASE_URL)
+                    .param("dueAfter", "2046-05-31").param("dueBefore", "2046-06-10"));
+
+            // Assert
+            after.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[*].id").value(contains(late)));
+            before.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[*].id").value(contains(early)));
+        }
+
+        @Test
+        void sortsByDueDateAscending() throws Exception {
+            // Arrange
+            String third = createTask("Third", LocalDate.of(2043, 3, 20));
+            String first = createTask("First", LocalDate.of(2043, 3, 5));
+            String second = createTask("Second", LocalDate.of(2043, 3, 12));
+
+            // Act
+            ResultActions result = mockMvc.perform(get(BASE_URL)
+                    .param("dueAfter", "2043-02-28").param("dueBefore", "2043-04-01")
+                    .param("sort", "dueDate,asc"));
+
+            // Assert
+            result.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[*].id").value(contains(first, second, third)));
+        }
+
+        @Test
+        void sortsByDueDateDescending() throws Exception {
+            // Arrange
+            String third = createTask("Third", LocalDate.of(2044, 4, 20));
+            String first = createTask("First", LocalDate.of(2044, 4, 5));
+            String second = createTask("Second", LocalDate.of(2044, 4, 12));
+
+            // Act
+            ResultActions result = mockMvc.perform(get(BASE_URL)
+                    .param("dueAfter", "2044-03-31").param("dueBefore", "2044-05-01")
+                    .param("sort", "dueDate,desc"));
+
+            // Assert
+            result.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[*].id").value(contains(third, second, first)));
+        }
+
+        @Test
+        void sortsByTitleWhenNoDirectionIsGivenAscending() throws Exception {
+            // Arrange
+            LocalDate due = LocalDate.of(2047, 7, 7);
+            String banana = createTask("Banana", due);
+            String cherry = createTask("Cherry", due);
+            String apple = createTask("Apple", due);
+
+            // Act
+            ResultActions result = mockMvc.perform(get(BASE_URL)
+                    .param("dueAfter", "2047-07-06").param("dueBefore", "2047-07-08")
+                    .param("sort", "title"));
+
+            // Assert
+            result.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[*].id").value(contains(apple, banana, cherry)));
+        }
+
+        @Test
+        void undatedTasksSortLastInBothDirections() throws Exception {
+            // Arrange
+            // The only undated task in the whole table, so it is the very last row of either order.
+            String undated = createTask("No due date", null);
+            createTask("Dated", LocalDate.of(2048, 8, 8));
+            long total = totalElements(mockMvc.perform(get(BASE_URL).param("size", "1")));
+
+            // Act
+            ResultActions ascending = mockMvc.perform(get(BASE_URL)
+                    .param("sort", "dueDate,asc").param("size", "1").param("page", String.valueOf(total - 1)));
+            ResultActions descending = mockMvc.perform(get(BASE_URL)
+                    .param("sort", "dueDate,desc").param("size", "1").param("page", String.valueOf(total - 1)));
+
+            // Assert
+            ascending.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].id").value(undated));
+            descending.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].id").value(undated));
+        }
+
+        @Test
+        void pagesThroughTheResultWithTotalsAndAnEmptyPageBeyondTheEnd() throws Exception {
+            // Arrange
+            String t1 = createTask("P1", LocalDate.of(2045, 5, 1));
+            String t2 = createTask("P2", LocalDate.of(2045, 5, 2));
+            String t3 = createTask("P3", LocalDate.of(2045, 5, 3));
+            String t4 = createTask("P4", LocalDate.of(2045, 5, 4));
+            String t5 = createTask("P5", LocalDate.of(2045, 5, 5));
+            MockHttpServletRequestBuilder first = pagedRequest(0);
+            MockHttpServletRequestBuilder middle = pagedRequest(1);
+            MockHttpServletRequestBuilder last = pagedRequest(2);
+            MockHttpServletRequestBuilder beyond = pagedRequest(3);
+
+            // Act
+            ResultActions firstPage = mockMvc.perform(first);
+            ResultActions middlePage = mockMvc.perform(middle);
+            ResultActions lastPage = mockMvc.perform(last);
+            ResultActions beyondPage = mockMvc.perform(beyond);
+
+            // Assert
+            firstPage.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[*].id").value(contains(t1, t2)))
+                    .andExpect(jsonPath("$.page").value(0))
+                    .andExpect(jsonPath("$.size").value(2))
+                    .andExpect(jsonPath("$.totalElements").value(5))
+                    .andExpect(jsonPath("$.totalPages").value(3));
+            middlePage.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[*].id").value(contains(t3, t4)))
+                    .andExpect(jsonPath("$.page").value(1));
+            lastPage.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[*].id").value(contains(t5)))
+                    .andExpect(jsonPath("$.page").value(2))
+                    .andExpect(jsonPath("$.totalElements").value(5))
+                    .andExpect(jsonPath("$.totalPages").value(3));
+            beyondPage.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content").isEmpty())
+                    .andExpect(jsonPath("$.page").value(3))
+                    .andExpect(jsonPath("$.totalElements").value(5))
+                    .andExpect(jsonPath("$.totalPages").value(3));
+        }
+
+        @Test
+        void combinesStatusDateWindowSortAndPaging() throws Exception {
+            // Arrange
+            LocalDate due = LocalDate.of(2049, 9, 9);
+            String doneB = createTask("B", due);
+            String doneA = createTask("A", due);
+            String doneC = createTask("C", due);
+            createTask("Z", due);
+            for (String id : List.of(doneA, doneB, doneC)) {
+                changeStatus(id, TaskStatusAction.COMPLETE).andExpect(status().isOk());
+            }
+
+            // Act
+            ResultActions result = mockMvc.perform(get(BASE_URL)
+                    .param("status", "DONE")
+                    .param("dueAfter", "2049-09-08")
+                    .param("dueBefore", "2049-09-10")
+                    .param("sort", "title,desc")
+                    .param("page", "1")
+                    .param("size", "2"));
+
+            // Assert
+            result.andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[*].id").value(contains(doneA)))
+                    .andExpect(jsonPath("$.totalElements").value(3))
+                    .andExpect(jsonPath("$.totalPages").value(2));
+        }
+
+        @ParameterizedTest
+        @CsvSource(delimiter = '|', value = {
+                "sort=priority,asc                         | Unknown sort field 'priority'",
+                "sort=title,sideways                       | Unknown sort direction 'sideways'",
+                "status=BLOCKED                            | Invalid value for parameter 'status'",
+                "dueAfter=not-a-date                       | Invalid value for parameter 'dueAfter'",
+                "dueAfter=2050-01-02&dueBefore=2050-01-01  | dueAfter must be before dueBefore",
+                "page=-1                                   | Page index must not be negative",
+                "page=abc                                  | Invalid value for parameter 'page'",
+                "size=0                                    | Page size must be between 1 and 100",
+                "size=101                                  | Page size must be between 1 and 100"
+        })
+        void invalidParameterReturns400ErrorResponse(String queryString, String expectedMessage) throws Exception {
+            // Arrange
+            String url = BASE_URL + "?" + queryString;
+
+            // Act
+            ResultActions result = mockMvc.perform(get(url));
+
+            // Assert
+            result.andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Bad Request"))
+                    .andExpect(jsonPath("$.message").value(containsString(expectedMessage)))
+                    .andExpect(jsonPath("$.path").value(BASE_URL))
+                    .andExpect(jsonPath("$.timestamp").isNotEmpty());
+        }
+
+        private MockHttpServletRequestBuilder pagedRequest(int page) {
+            return get(BASE_URL)
+                    .param("dueAfter", "2045-04-30").param("dueBefore", "2045-06-01")
+                    .param("sort", "dueDate,asc")
+                    .param("size", "2").param("page", String.valueOf(page));
+        }
+
+        private long totalElements(ResultActions result) throws Exception {
+            String body = result.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            return ((Number) JsonPath.read(body, "$.totalElements")).longValue();
+        }
+    }
+
     /** Creates a task through the API and returns its id. */
     private String createTask() throws Exception {
-        String body = objectMapper.writeValueAsString(new CreateTaskRequest(TITLE, DESCRIPTION, DUE_DATE));
+        return createTask(TITLE, DUE_DATE);
+    }
+
+    /** Creates a task with the given title and due date (possibly null) and returns its id. */
+    private String createTask(String title, LocalDate dueDate) throws Exception {
+        String body = objectMapper.writeValueAsString(new CreateTaskRequest(title, DESCRIPTION, dueDate));
         String response = mockMvc.perform(post(BASE_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
