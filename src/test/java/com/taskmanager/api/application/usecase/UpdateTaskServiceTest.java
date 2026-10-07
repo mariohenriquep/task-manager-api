@@ -8,6 +8,7 @@ import com.taskmanager.api.domain.repository.TaskRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -43,12 +44,16 @@ class UpdateTaskServiceTest {
 
     @Test
     void updatesExistingTaskDetails() {
+        // Arrange
         Task existing = Task.create("Original", "Original desc", null, FIXED_CLOCK);
         when(taskRepository.findById(existing.id())).thenReturn(Optional.of(existing));
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        UpdateTaskCommand command = new UpdateTaskCommand(existing.id(), "New title", "New desc", LocalDate.of(2026, 10, 1));
 
-        Task result = useCase.execute(new UpdateTaskCommand(existing.id(), "New title", "New desc", LocalDate.of(2026, 10, 1)));
+        // Act
+        Task result = useCase.execute(command);
 
+        // Assert
         assertThat(result.title()).isEqualTo("New title");
         assertThat(result.description()).isEqualTo("New desc");
         assertThat(result.dueDate()).isEqualTo(LocalDate.of(2026, 10, 1));
@@ -56,24 +61,30 @@ class UpdateTaskServiceTest {
 
     @Test
     void throwsWhenTaskDoesNotExist() {
+        // Arrange
         UUID id = UUID.randomUUID();
         when(taskRepository.findById(id)).thenReturn(Optional.empty());
+        Executable act = () -> useCase.execute(new UpdateTaskCommand(id, "Title", null, null));
 
-        TaskNotFoundException ex = assertThrows(TaskNotFoundException.class,
-                () -> useCase.execute(new UpdateTaskCommand(id, "Title", null, null)));
+        // Act
+        TaskNotFoundException ex = assertThrows(TaskNotFoundException.class, act);
 
+        // Assert
         assertThat(ex.getMessage()).isEqualTo("Task not found: " + id);
         verify(taskRepository, never()).save(any(Task.class));
     }
 
     @Test
     void propagatesDomainValidationFailureForBlankTitle() {
+        // Arrange
         Task existing = Task.create("Original", "Original desc", null, FIXED_CLOCK);
         when(taskRepository.findById(existing.id())).thenReturn(Optional.of(existing));
+        Executable act = () -> useCase.execute(new UpdateTaskCommand(existing.id(), "   ", "New desc", null));
 
-        InvalidTaskException ex = assertThrows(InvalidTaskException.class,
-                () -> useCase.execute(new UpdateTaskCommand(existing.id(), "   ", "New desc", null)));
+        // Act
+        InvalidTaskException ex = assertThrows(InvalidTaskException.class, act);
 
+        // Assert
         assertThat(ex.getMessage()).isEqualTo("Task title must not be blank");
         verify(taskRepository, never()).save(any(Task.class));
     }
