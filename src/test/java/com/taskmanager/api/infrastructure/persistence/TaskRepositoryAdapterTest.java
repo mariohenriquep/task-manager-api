@@ -34,63 +34,90 @@ class TaskRepositoryAdapterTest extends AbstractPostgresIntegrationTest {
 
     @Test
     void savesAndRetrievesATaskById() {
+        // Arrange
         Task task = Task.create("Buy groceries", "Milk, eggs, bread", LocalDate.of(2026, 9, 1), Clock.systemUTC());
 
+        // Act
         adapter.save(task);
         Optional<Task> found = adapter.findById(task.id());
 
+        // Assert
         assertThat(found).isPresent();
         assertRoundTripsCorrectly(task, found.get());
     }
 
     @Test
     void returnsEmptyWhenTaskDoesNotExist() {
-        assertThat(adapter.findById(UUID.randomUUID())).isEmpty();
+        // Arrange
+        UUID unknownId = UUID.randomUUID();
+
+        // Act
+        Optional<Task> found = adapter.findById(unknownId);
+
+        // Assert
+        assertThat(found).isEmpty();
     }
 
     @Test
     void findsAllPersistedTasks() {
+        // Arrange
         Task first = Task.create("First", null, null, Clock.systemUTC());
         Task second = Task.create("Second", null, null, Clock.systemUTC());
         adapter.save(first);
         adapter.save(second);
 
+        // Act
         List<Task> all = adapter.findAll();
 
+        // Assert
         assertThat(all).extracting(Task::id).containsExactlyInAnyOrder(first.id(), second.id());
     }
 
     @Test
     void updatesAnExistingTaskOnSave() {
+        // Arrange
         Task task = Task.create("Original", null, null, Clock.systemUTC());
         adapter.save(task);
-
         Task started = task.start(Clock.systemUTC());
-        adapter.save(started);
 
+        // Act
+        adapter.save(started);
         Optional<Task> found = adapter.findById(task.id());
+        List<Task> all = adapter.findAll();
+
+        // Assert
         assertThat(found).isPresent();
         assertThat(found.get().status()).isEqualTo(TaskStatus.IN_PROGRESS);
-        assertThat(adapter.findAll()).hasSize(1);
+        assertThat(all).hasSize(1);
     }
 
     @Test
     void deletesATask() {
+        // Arrange
         Task task = Task.create("To delete", null, null, Clock.systemUTC());
         adapter.save(task);
 
+        // Act
         adapter.deleteById(task.id());
+        Optional<Task> found = adapter.findById(task.id());
 
-        assertThat(adapter.findById(task.id())).isEmpty();
+        // Assert
+        assertThat(found).isEmpty();
     }
 
     @Test
     void reportsWhetherATaskExists() {
+        // Arrange
         Task task = Task.create("Existing", null, null, Clock.systemUTC());
         adapter.save(task);
 
-        assertThat(adapter.existsById(task.id())).isTrue();
-        assertThat(adapter.existsById(UUID.randomUUID())).isFalse();
+        // Act
+        boolean existingTaskExists = adapter.existsById(task.id());
+        boolean unknownTaskExists = adapter.existsById(UUID.randomUUID());
+
+        // Assert
+        assertThat(existingTaskExists).isTrue();
+        assertThat(unknownTaskExists).isFalse();
     }
 
     private void assertRoundTripsCorrectly(Task expected, Task actual) {
