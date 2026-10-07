@@ -1,6 +1,8 @@
 package com.taskmanager.api.domain.repository;
 
 import com.taskmanager.api.domain.model.Task;
+import com.taskmanager.api.domain.query.Page;
+import com.taskmanager.api.domain.query.TaskQuery;
 
 import java.util.List;
 import java.util.Optional;
@@ -20,6 +22,9 @@ public interface TaskRepository {
     Optional<Task> findById(UUID id);
 
     List<Task> findAll();
+
+    /** Returns the page of tasks described by {@code query}: filtered, sorted and sliced. */
+    Page<Task> search(TaskQuery query);
 
     void deleteById(UUID id);
 
