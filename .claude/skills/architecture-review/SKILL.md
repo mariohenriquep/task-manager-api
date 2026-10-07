@@ -77,7 +77,9 @@ nothing in the diff touches it rather than forcing a comment to fill out the lis
 - **§7 Testing conventions** — is new logic tested at the layer it belongs to (plain JUnit for
   domain/application, `@DataJpaTest`+Testcontainers for persistence, `@WebMvcTest` for web)? Is
   there a real test at all, not just something that executes the line without asserting
-  behavior? If JaCoCo's `mvn verify` would drop below its floor because of this diff, say so.
+  behavior? Does every new test follow Arrange-Act-Assert with the `// Arrange` / `// Act` /
+  `// Assert` markers, and do exception paths use `assertThrows` (not `assertThatThrownBy`)? If
+  JaCoCo's `mvn verify` would drop below its floor because of this diff, say so.
 
 ### 5. Report
 
