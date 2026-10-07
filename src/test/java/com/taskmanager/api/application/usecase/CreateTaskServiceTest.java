@@ -7,6 +7,7 @@ import com.taskmanager.api.domain.repository.TaskRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.function.Executable;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -17,8 +18,9 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -40,10 +42,14 @@ class CreateTaskServiceTest {
 
     @Test
     void createsTaskAndPersistsIt() {
+        // Arrange
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        CreateTaskCommand command = new CreateTaskCommand("Write tests", "Follow TDD", LocalDate.of(2026, 9, 1));
 
-        Task result = useCase.execute(new CreateTaskCommand("Write tests", "Follow TDD", LocalDate.of(2026, 9, 1)));
+        // Act
+        Task result = useCase.execute(command);
 
+        // Assert
         assertThat(result.title()).isEqualTo("Write tests");
         assertThat(result.description()).isEqualTo("Follow TDD");
         assertThat(result.dueDate()).isEqualTo(LocalDate.of(2026, 9, 1));
@@ -55,7 +61,14 @@ class CreateTaskServiceTest {
 
     @Test
     void propagatesDomainValidationFailure() {
-        assertThatThrownBy(() -> useCase.execute(new CreateTaskCommand("", "desc", null)))
-                .isInstanceOf(InvalidTaskException.class);
+        // Arrange
+        Executable act = () -> useCase.execute(new CreateTaskCommand("", "desc", null));
+
+        // Act
+        InvalidTaskException ex = assertThrows(InvalidTaskException.class, act);
+
+        // Assert
+        assertThat(ex.getMessage()).isEqualTo("Task title must not be blank");
+        verify(taskRepository, never()).save(any(Task.class));
     }
 }
